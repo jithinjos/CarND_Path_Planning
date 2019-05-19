@@ -18,7 +18,7 @@ using std::vector;
 int lane = 1;
 
 // Have a reference velocity to target
-double ref_vel = 49.5; // mph
+double ref_vel = 0; // mph, start from 'zero' and accelerate
 
 int main()
 {
@@ -100,16 +100,57 @@ int main()
           double end_path_d = j[1]["end_path_d"];
 
           // Sensor Fusion Data, a list of all other cars on the same side
-          //  of the road.
+          // of the road.
           auto sensor_fusion = j[1]["sensor_fusion"];
 
           /**
-           * TODO: define a path made up of (x,y) points that the car will visit
-           *   sequentially every .02 seconds
-           */
+          * TODO ends!!
+          */
 
           // Set previous size
           int prev_size = previous_path_x.size();
+
+          if (prev_size > 0)
+          {
+            car_s = end_path_s;
+          }
+
+          // Checking other cars in the road using info from sensor fusion
+          bool too_close = false;
+
+          // Find ref_v to use
+          for (int i = 0; i < sensor_fusion.size(); i++)
+          {
+            // Car is in my lane
+            float d = sensor_fusion[i][6];
+            if (d < 2 + 4 * lane + 2 && d > 2 + 4 * lane - 2)
+            {
+              double vx = sensor_fusion[i][3];
+              double vy = sensor_fusion[i][4];
+              double check_speed = sqrt(vx * vx + vy * vy);
+              double check_car_s = sensor_fusion[i][5];
+
+              //if using previous points can project s value out
+              check_car_s += ((double)prev_size * .02 * check_speed);
+              //check s values greater than mine and s gap
+              if ((check_car_s > car_s) && (check_car_s - car_s) < 30)
+              {
+                // Do some logic here, lower reference velocity so we don't crash into the car in front
+                // Could also flag to try yo change lanes
+                // ref_vel =29.5; //mph
+                too_close = true;
+              }
+            }
+          }
+          // std::cout << "\n too close :" << too_close;
+          if (too_close)
+          {
+            ref_vel -= .224;
+          }
+          else if (ref_vel < 49.5)
+          {
+            ref_vel += .224;
+          }
 
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
           // Later we will interpolate these waypoints with a spline and
@@ -206,7 +247,7 @@ int main()
           // here we will always output 50 points.
           for (int i = 1; i <= 50 - previous_path_x.size(); i++)
           {
-            double N = target_dist / (.02 * ref_vel / 2.24);  //visits every .02 secs, 1 m/s = 2.24mph
+            double N = target_dist / (.02 * ref_vel / 2.24);
             double x_point = x_add_on + target_x / N;
             double y_point = s(x_point);
 
