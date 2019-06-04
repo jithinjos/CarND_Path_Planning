@@ -19,6 +19,8 @@ int lane = 1;
 
 // Have a reference velocity to target
 double ref_vel = 0; // mph, start from 'zero' and accelerate
+const double targ_vel = 49.5; // target velocity, short of 50mph
+const double incr_vel = .224; // increment velocity in each time step
 
 int main()
 {
@@ -69,7 +71,9 @@ int main()
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
-    if (length && length > 2 && data[0] == '4' && data[1] == '2')
+    if (length && length > 2 &&
+        data[0] == '4' &&
+        data[1] == '2')
     {
 
       auto s = hasData(data);
@@ -116,40 +120,70 @@ int main()
           }
 
           // Checking other cars in the road using info from sensor fusion
-          bool too_close = false;
+          bool car_ahead = false;
+          bool car_left = false;
+          bool car_right = false;
 
           // Find ref_v to use
           for (int i = 0; i < sensor_fusion.size(); i++)
           {
-            // Car is in my lane
+            
             float d = sensor_fusion[i][6];
-            if (d < 2 + 4 * lane + 2 && d > 2 + 4 * lane - 2)
-            {
-              double vx = sensor_fusion[i][3];
-              double vy = sensor_fusion[i][4];
-              double check_speed = sqrt(vx * vx + vy * vy);
-              double check_car_s = sensor_fusion[i][5];
+            
+            int car_lane = std::floor(d / 4); // car lane 0,1 or 2 from sensor fusion
 
-              //if using previous points can project s value out
-              check_car_s += ((double)prev_size * .02 * check_speed);
-              //check s values greater than mine and s gap
-              if ((check_car_s > car_s) && (check_car_s - car_s) < 30)
-              {
-                // Do some logic here, lower reference velocity so we don't crash into the car in front
-                // Could also flag to try yo change lanes
-                // ref_vel =29.5; //mph
-                too_close = true;
-              }
+            double vx = sensor_fusion[i][3];
+            double vy = sensor_fusion[i][4];
+            double check_speed = sqrt(vx * vx + vy * vy);
+            double check_car_s = sensor_fusion[i][5];
+
+            // Estimate car s position after executing previous trajectory.
+            check_car_s += ((double)prev_size * .02 * check_speed);
+
+            // Check for cars within 30m from my car in each lane
+            if (car_lane == lane) // Car in same lane.
+            {
+              car_ahead |= check_car_s > car_s && check_car_s - car_s < 30;
+            }
+            else if (car_lane - lane == -1) // Car left
+            {
+              car_left |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
+            }
+            else if (car_lane - lane == 1) // Car right
+            {
+              car_right |= car_s - 30 < check_car_s && car_s + 30 > check_car_s;
             }
           }
-          // std::cout << "\n too close :" << too_close;
-          if (too_close)
-          {
-            ref_vel -= .224;
+
+          // Controling speed and lane for my car
+          if (car_ahead)
+          { // if car ahead
+            if (!car_left && lane > 0)
+            { // if no car to left and left lane clear.
+              lane--; // Change lane left.
+            }
+            else if (!car_right && lane != 2)
+            { // if no car to right and right lane clear.
+              lane++; // Change lane right.
+            }
+            else
+            { // Slow down
+              ref_vel -= incr_vel;
+            }
           }
-          else if (ref_vel < 49.5)
+          else
           {
-            ref_vel += .224;
+            if (lane != 1)
+            { // if not on the center lane.
+              if ((lane == 0 && !car_right) || (lane == 2 && !car_left))
+              {
+                lane = 1; // Back to center.
+              }
+            }
+            if (ref_vel < targ_vel)
+            { // Speed up
+              ref_vel += incr_vel;
+            }
           }
 
           // Create a list of widely spaced (x,y) waypoints, evenly spaced at 30m
