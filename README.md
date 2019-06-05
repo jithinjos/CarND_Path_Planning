@@ -65,10 +65,6 @@ the path has processed since last time.
 
 2. There will be some latency between the simulator running and the path planner returning a path, with optimized code usually its not very long maybe just 1-3 time steps. During this delay the simulator will continue using points that it was last given, because of this its a good idea to store the last points you have used so you can have a smooth transition. previous_path_x, and previous_path_y can be helpful for this transition since they show the last points given to the simulator controller with the processed points already removed. You would either return a path that extends this previous path or make sure to create a new path that has a smooth transition with this last path.
 
-## Tips
-
-A really helpful resource for doing this project and creating smooth trajectories was using http://kluge.in-chemnitz.de/opensource/spline/, the spline function is in a single hearder file is really easy to use.
-
 ---
 
 ## Dependencies
@@ -91,55 +87,43 @@ A really helpful resource for doing this project and creating smooth trajectorie
     cd uWebSockets
     git checkout e94b6e1
     ```
+---
+# Self Evaluation against [Rubric](https://review.udacity.com/#!/rubrics/1971/view)
+![Driving](report/driving_success.png)
 
-## Editor Settings
+## Compilation
+* Code complied without error.
 
-We've purposefully kept editor configuration files out of this repo in order to
-keep it as simple and environment agnostic as possible. However, we recommend
-using the following settings:
+## Valid Trajectories
+* Car drove more than 4.32 miles without any incidents. Snapshot attached.
+* Speed limit was maintained just below 50mph.
+* Max acceleration and jerk was not exceeded. This is controlled by a low speed increment value.
+* No collisions. Either change lane or slowdown.
+* Car kept within a lane while driving. Lane changes took less than 3 seconds only.
+* Car is able to change lane safely when behind a slower car. Car prefers to keep mid lane when it has a choice.
 
-* indent using spaces
-* set tab width to 2 spaces (keeps the matrices in source code aligned)
+## Reflection
+Most of the code was discussed in the [Project Q&A section](https://youtu.be/7sI3VHFPP0w) by Aaron Brown and David Silver. The starter code from udacity is set up to communicate the telemetry data. The path planning code has to supply a point set for car to traverse at 0.02 seconds interval. I've reused the code from the Project Q&A as much as possible. At this point, the code already accelerates the car slowly from zero - without jerk and keeping acceleration limits, plans way points from car position 30, 60 and 90 meters away and uses [spline](https://kluge.in-chemnitz.de/opensource/spline/) to fit it smoothly. The car also decelerates if it finds a car ahead of it.
 
-## Code Style
+The *TODO* section of code can be discussed in three parts.
+### Scanning each lane ([line 110 to 143](./src/main.cpp#L110))
+- Check if a car ahead in the same lane is within next 30 meters. Flag it if true.
+- Check if a car on left lane is within 30 meters (front & back). Flag it if true.
+- Check if a car on right lane is within 30 meters (front & back). Flag it if true.
 
-Please (do your best to) stick to [Google's C++ style guide](https://google.github.io/styleguide/cppguide.html).
+These flags are the conditions to control the behvaiour of car in next section - change lane, speed up or slow down.
 
-## Project Instructions and Rubric
+### Control car speed and lane ([line 145 to 165](./src/main.cpp#L145))
+The section implements the following checks.
+ * if there is a slow car ahead of my car, and
+    - if left lane is available, plan for move to left lane
+    - if right lane is available, plan for move to right lane
+    - if left and right lane are not availbale, slow down.
+* else , 
+    - if my car is not on center lane and center lane available, plan for move to center lane.
+    - if my car velocity is less than target velocity, accelerate.
 
-Note: regardless of the changes you make, your project must be buildable using
-cmake and make!
+The lane number from this section is used for planning the trajectory in the next part.
 
-
-## Call for IDE Profiles Pull Requests
-
-Help your fellow students!
-
-We decided to create Makefiles with cmake to keep this project as platform
-agnostic as possible. Similarly, we omitted IDE profiles in order to ensure
-that students don't feel pressured to use one IDE or another.
-
-However! I'd love to help people get up and running with their IDEs of choice.
-If you've created a profile for an IDE that you think other students would
-appreciate, we'd love to have you add the requisite profile files and
-instructions to ide_profiles/. For example if you wanted to add a VS Code
-profile, you'd add:
-
-* /ide_profiles/vscode/.vscode
-* /ide_profiles/vscode/README.md
-
-The README should explain what the profile does, how to take advantage of it,
-and how to install it.
-
-Frankly, I've never been involved in a project with multiple IDE profiles
-before. I believe the best way to handle this would be to keep them out of the
-repo root to avoid clutter. My expectation is that most profiles will include
-instructions to copy files to a new location to get picked up by the IDE, but
-that's just a guess.
-
-One last note here: regardless of the IDE used, every submitted project must
-still be compilable with cmake and make./
-
-## How to write a README
-A well written README file can enhance your project and portfolio.  Develop your abilities to create professional README files by completing [this free course](https://www.udacity.com/course/writing-readmes--ud777).
-
+### Trajectory plan ([line 167 to 289](./src/main.cpp#L167))
+The code Aaron and David shared in [Project Q&A section](https://youtu.be/7sI3VHFPP0w) is used as it is in this section. The waypoints are coded in as a function that uses the lane number. Therefore, based on the  plan to change lane or keep it from the earlier section the waypoints are updated. Use of spline function makes the transition smooth when updating waypoint set. 
